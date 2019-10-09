@@ -1,4 +1,5 @@
 '''Module for matching Sympla check-ins with UFSC's classes.'''
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple, Optional, Any, Tuple
 
@@ -25,7 +26,7 @@ def join(c: Tuple[Any, Any]) -> str:
 
 
 def retrieve_attendances(source: Path):
-    wb = load_workbook(filename=path.resolve(), read_only=True)
+    wb = load_workbook(filename=source.resolve(), read_only=True)
     sheet = wb['Lista de participantes']
     rows = [
         (join(c), k.value, q.value)

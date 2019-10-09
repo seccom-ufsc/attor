@@ -46,7 +46,7 @@ def test_retrieve_who_attended():
     ]
 
     attendances = retrieve_attendances(
-        Path('assets/Presenças/Minicursos/0930/Matutino.xlsx')
+        Path('tests/assets/Presenças/Minicursos/0930/Matutino.xlsx')
     )
 
     names = sorted(
@@ -101,8 +101,8 @@ def test_retrieve_who_attended_from_class():
         'Wesly Ataide',
     ]
 
-    attendances = attendance_from_class(
-        Path('assets/Presenças/Minicursos/0930/Matutino.xlsx'),
+    attendances = attendances_from_class(
+        Path('tests/assets/Presenças/Minicursos/0930/Matutino.xlsx'),
         Class('INE5417', '04208A', '20192')
     )
 
