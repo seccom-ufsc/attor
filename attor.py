@@ -1,9 +1,12 @@
 '''Module for matching Sympla check-ins with UFSC's classes.'''
+from __future__ import annotations
+
+from datetime import date as Date
 from getpass import getpass
 from pathlib import Path
 from sys import argv
 from textwrap import dedent
-from typing import List, NamedTuple, Optional, Any, Tuple
+from typing import Iterable, List, NamedTuple, Optional, Any, Tuple
 
 
 from cagrex import CAGR
@@ -20,24 +23,73 @@ class Attender(NamedTuple):
     name: str
     attended: bool = True
     student_id: Optional[str] = None
+    cpf: Optional[str] = None
+    classes: List[str] = []
 
 
-def join(c: Tuple[Any, Any]) -> str:
-    return ' '.join(s.value.strip() for s in list(c)).strip()
+class Ticket(NamedTuple):
+    number: int
+    ticket_id: str
+    name: str
+    surname: str
+    ticket_type: str
+    value: str
+    order_date: Date
+    order_id: str
+    email: str
+    state: str
+    checked_in: str
+    checkin_date: Optional[Date]
+    discount_code: str
+    pay_method: str
+    pdv: str
+    cpf: str
+    student_id: str
+    classes: List[str]
+
+    @staticmethod
+    def from_row(row) -> Ticket:
+        row = [
+            cell.value if cell.value else ''
+            for cell in row
+        ]
+        return Ticket(
+            int(row[0]),
+            *row[1:6],
+            Date.fromisoformat(row[6].split(' ')[0]),
+            *row[7:11],
+            Date.fromisoformat(row[11].split(' ')[0]) if row[11] else None,
+            *row[12:17],
+            row[17].split(','),
+        )
+
+
+def iter_as_tickets(sheet_range) -> Iterable[Ticket]:
+    for row in sheet_range:
+        if all(cell.value is None for cell in row):
+            return
+
+        yield Ticket.from_row(row)
+
+
+def strip_join(c: Tuple[str, str]) -> str:
+    return ' '.join(s.strip() for s in list(c)).strip()
 
 
 def retrieve_attenders(source: Path) -> List[Attender]:
     wb = load_workbook(filename=source.resolve(), read_only=True)
     sheet = wb['Lista de participantes']
     rows = [
-        (join((c, d)), k.value == 'Sim', str(q.value))
-        for (c, d), (k, *_), (q, *_) in zip(
-            sheet['C9:D500'],
-            sheet['K9:K500'],
-            sheet['Q9:Q500'],
+        (strip_join((ticket.name, ticket.surname)), ticket.checked_in == 'Sim', ticket.student_id)
+        for ticket in iter_as_tickets(
+            sheet.iter_rows(
+                min_row=9,
+                min_col=1,
+                max_col=18,
+            )
         )
-        if (c.value, d.value) != (None, None) and
-           k.value == 'Sim'
+        if (ticket.name, ticket.name) != (None, None) and
+           ticket.checked_in == 'Sim'
     ]
 
     return [
