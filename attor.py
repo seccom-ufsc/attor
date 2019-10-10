@@ -6,11 +6,13 @@ from getpass import getpass
 from pathlib import Path
 from sys import argv
 from textwrap import dedent
-from typing import Iterable, List, NamedTuple, Optional, Any, Tuple
+from typing import Iterable, List, NamedTuple, Optional, Tuple
 
-
+from carl import command, REQUIRED
+from carl.carl import Command
 from cagrex import CAGR
 from openpyxl import load_workbook
+from openpyxl.cell.read_only import ReadOnlyCell
 
 
 class Class(NamedTuple):
@@ -55,16 +57,29 @@ class Ticket(NamedTuple):
         ]
         return Ticket(
             int(row[0]),
-            *row[1:6],
+            row[1],
+            row[2],
+            row[3],
+            row[4],
+            row[5],
             Date.fromisoformat(row[6].split(' ')[0]),
-            *row[7:11],
+            row[7],
+            row[8],
+            row[9],
+            row[10],
             Date.fromisoformat(row[11].split(' ')[0]) if row[11] else None,
-            *row[12:17],
+            row[12],
+            row[13],
+            row[14],
+            row[15],
+            row[16],
             row[17].split(','),
         )
 
 
-def iter_as_tickets(sheet_range) -> Iterable[Ticket]:
+def iter_as_tickets(
+    sheet_range: Iterable[Tuple[ReadOnlyCell]]
+) -> Iterable[Ticket]:
     for row in sheet_range:
         if all(cell.value is None for cell in row):
             return
@@ -78,27 +93,18 @@ def strip_join(c: Tuple[str, str]) -> str:
 
 def retrieve_attenders(source: Path) -> List[Attender]:
     wb = load_workbook(filename=source.resolve(), read_only=True)
-    sheet = wb['Lista de participantes']
+    sheet = wb.active
+
+    row_iter = sheet.iter_rows(min_row=9, min_col=1, max_col=18)
     rows = [
-        (strip_join((ticket.name, ticket.surname)), ticket.checked_in == 'Sim', ticket.student_id)
-        for ticket in iter_as_tickets(
-            sheet.iter_rows(
-                min_row=9,
-                min_col=1,
-                max_col=18,
-            )
-        )
-        if (ticket.name, ticket.name) != (None, None) and
-           ticket.checked_in == 'Sim'
+        (strip_join((ticket.name, ticket.surname)).title(),
+         ticket.checked_in == 'Sim',
+         ticket.student_id, )
+        for ticket in iter_as_tickets(row_iter)
+        if ticket.checked_in == 'Sim'
     ]
 
-    return [
-        Attender(
-            fullname.title(),
-            *row
-        )
-        for fullname, *row in rows
-    ]
+    return [Attender(*row) for row in rows]
 
 
 def attenders_from_class(source: Path, class_: Class) -> List[Attender]:
@@ -118,12 +124,17 @@ def attenders_from_class(source: Path, class_: Class) -> List[Attender]:
     ]
 
 
-def main():
+@command
+def main(subcommand: Command = REQUIRED):
+    pass
+
+
+def foo():
     program = argv[0]
     try:
         source, *class_ = argv[1:]
         class_ = Class(*class_)
-    except:
+    except ValueError:
         print(dedent(f'''
             Usage: {program} <XLSX file> <subject ID> <class ID> <semester>
             Example:
@@ -135,5 +146,11 @@ def main():
         print(f'{attender.student_id},{attender.name}')
 
 
+@main.subcommand
+def gen(xlsx_path: Path):
+    attenders = retrieve_attenders(Path(xlsx_path))
+    print(attenders)
+
+
 if __name__ == '__main__':
-    main()
+    main.run()
