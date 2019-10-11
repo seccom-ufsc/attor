@@ -6,13 +6,24 @@ from getpass import getpass
 from pathlib import Path
 from sys import argv
 from textwrap import dedent
-from typing import Iterable, List, NamedTuple, Optional, Tuple
+from typing import (
+    Any,
+    Iterable,
+    List,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+)
+import csv
 
 from carl import command, REQUIRED
 from carl.carl import Command
 from cagrex import CAGR
+from cagrex.cagr import Student
 from openpyxl import load_workbook
 from openpyxl.cell.read_only import ReadOnlyCell
+from zipfile import BadZipfile
 
 
 class Class(NamedTuple):
@@ -124,6 +135,38 @@ def attenders_from_class(source: Path, class_: Class) -> List[Attender]:
     ]
 
 
+def infer_type_from_fields(fieldnames: Sequence[str]):
+    for _type in [Attender, Student]:
+        if fieldnames == list(_type._fields):
+            print(_type)
+            return _type
+    print('failed :(')
+
+
+def data_from_csv(path: Path):
+    with open(path) as f:
+        reader = csv.DictReader(f)
+        _type = infer_type_from_fields(reader.fieldnames)
+        return [_type(**d) for d in reader]
+
+
+def members_from_csv(path: Path):
+    with open(path) as f:
+        reader = csv.DictReader(f)
+        return [Student(**d) for d in reader]
+
+
+def save_into(data: List[Any], output: Path):
+    with open(output, 'w') as out:
+        writer = csv.DictWriter(
+            out,
+            type(data[0])._fields,
+            quoting=csv.QUOTE_ALL
+        )
+        writer.writeheader()
+        writer.writerows(value._asdict() for value in data)
+
+
 @command
 def main(subcommand: Command = REQUIRED):
     pass
@@ -147,9 +190,29 @@ def foo():
 
 
 @main.subcommand
-def gen(xlsx_path: Path):
-    attenders = retrieve_attenders(Path(xlsx_path))
-    print(attenders)
+def convert(source: Path, output: Path):
+    try:
+        data = retrieve_attenders(Path(source))
+    except BadZipfile:
+        data = data_from_csv(Path(source))
+    save_into(data, output)
+
+
+@main.subcommand
+def filter(attenders_csv: Path, class_members_csv: Path, output: Path):
+    attenders = data_from_csv(attenders_csv)
+    classmembers = data_from_csv(class_members_csv)
+
+    filtered = [
+        attender
+        for attender in attenders
+        if any(
+            attender.student_id == member.student_id
+            for member in classmembers
+        )
+    ]
+
+    save_into(filtered, output)
 
 
 if __name__ == '__main__':
