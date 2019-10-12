@@ -1,6 +1,7 @@
 '''Module for matching Sympla check-ins with UFSC's classes.'''
 from __future__ import annotations
 
+from dataclasses import is_dataclass
 from datetime import date as Date
 from getpass import getpass
 from pathlib import Path
@@ -16,6 +17,7 @@ from typing import (
     Tuple,
 )
 import csv
+import dataclasses
 
 from carl import command, REQUIRED
 from carl.carl import Command
@@ -24,6 +26,10 @@ from cagrex.cagr import Student
 from openpyxl import load_workbook
 from openpyxl.cell.read_only import ReadOnlyCell
 from zipfile import BadZipfile
+
+
+class TypeInferError(Exception):
+    pass
 
 
 class Class(NamedTuple):
@@ -118,15 +124,9 @@ def retrieve_attenders(source: Path) -> List[Attender]:
     return [Attender(*row) for row in rows]
 
 
-def attenders_from_class(source: Path, class_: Class) -> List[Attender]:
-    attenders = retrieve_attenders(source)
-
-    cagr = CAGR()
-
-    print('**CAGR Login**')
-    cagr.login(input('UFSC ID: '), getpass('Password: '))
-
-    students = cagr.students_from_class(*class_)
+def attenders_from_class(source: Path, class_file: Path) -> List[Attender]:
+    attenders = data_from_csv(source)
+    students = data_from_csv(class_file)
     student_ids = [student.student_id for student in students]
 
     return [
@@ -138,9 +138,8 @@ def attenders_from_class(source: Path, class_: Class) -> List[Attender]:
 def infer_type_from_fields(fieldnames: Sequence[str]):
     for _type in [Attender, Student]:
         if fieldnames == list(_type._fields):
-            print(_type)
             return _type
-    print('failed :(')
+    raise TypeInferError(f'Could infer from fieldnames: {fieldnames}')
 
 
 def data_from_csv(path: Path):
@@ -150,21 +149,18 @@ def data_from_csv(path: Path):
         return [_type(**d) for d in reader]
 
 
-def members_from_csv(path: Path):
-    with open(path) as f:
-        reader = csv.DictReader(f)
-        return [Student(**d) for d in reader]
-
-
 def save_into(data: List[Any], output: Path):
+    if is_dataclass(data[0]):
+        fields = [field.name for field in dataclasses.fields(data[0])]
+        values = (dataclasses.asdict(value) for value in data)
+    else:
+        fields = type(data[0])._fields
+        values = (value._asdict() for value in data)
+
     with open(output, 'w') as out:
-        writer = csv.DictWriter(
-            out,
-            type(data[0])._fields,
-            quoting=csv.QUOTE_ALL
-        )
+        writer = csv.DictWriter(out, fields, quoting=csv.QUOTE_ALL)
         writer.writeheader()
-        writer.writerows(value._asdict() for value in data)
+        writer.writerows(values)
 
 
 @command
@@ -213,6 +209,28 @@ def filter(attenders_csv: Path, class_members_csv: Path, output: Path):
     ]
 
     save_into(filtered, output)
+
+
+@main.subcommand
+def fetch_members(
+    subject_id: str,
+    class_id: str,
+    semester: str,
+    output_dir: Path
+):
+    output_dir = Path(output_dir)
+    cagr = CAGR()
+
+    print('**CAGR Login**')
+    cagr.login(input('UFSC ID: '), getpass('Password: '))
+
+    students = cagr.students_from_class(subject_id, class_id, semester)
+
+    output_dir = output_dir / semester / subject_id
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True)
+
+    save_into(students, output_dir / f'{class_id}.csv')
 
 
 if __name__ == '__main__':
