@@ -5,8 +5,6 @@ from dataclasses import is_dataclass
 from datetime import date as Date
 from getpass import getpass
 from pathlib import Path
-from sys import argv
-from textwrap import dedent
 from typing import (
     Any,
     Iterable,
