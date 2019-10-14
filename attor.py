@@ -149,40 +149,30 @@ def data_from_csv(path: Path):
         return [_type(**d) for d in reader]
 
 
-def save_into(data: List[Any], output: Path):
+def save_into_csv(data: List[Any], output: Path):
     if is_dataclass(data[0]):
         fields = [field.name for field in dataclasses.fields(data[0])]
-        values = (dataclasses.asdict(value) for value in data)
+        values_dict = (dataclasses.asdict(value) for value in data)
     else:
         fields = type(data[0])._fields
-        values = (value._asdict() for value in data)
+        values_dict = (value._asdict() for value in data)
 
     with open(output, 'w') as out:
-        writer = csv.DictWriter(out, fields, quoting=csv.QUOTE_ALL)
+        writer = csv.DictWriter(
+            out,
+            [f.replace('_', '') for f in fields],
+            quoting=csv.QUOTE_NONE,
+        )
         writer.writeheader()
-        writer.writerows(values)
+        writer.writerows(sorted([
+            {key.replace('_', ''): value for key, value in entry.items()}
+            for entry in values_dict
+        ], key=lambda x: x['name']))
 
 
 @command
 def main(subcommand: Command = REQUIRED):
     pass
-
-
-def foo():
-    program = argv[0]
-    try:
-        source, *class_ = argv[1:]
-        class_ = Class(*class_)
-    except ValueError:
-        print(dedent(f'''
-            Usage: {program} <XLSX file> <subject ID> <class ID> <semester>
-            Example:
-                $ {program} SomeDayCheckins.xlsx INE5417 04208A 20192
-        ''').strip())
-        exit(1)
-
-    for attender in attenders_from_class(Path(source), class_):
-        print(f'{attender.student_id},{attender.name}')
 
 
 @main.subcommand
@@ -191,7 +181,7 @@ def convert(source: Path, output: Path):
         data = retrieve_attenders(Path(source))
     except BadZipfile:
         data = data_from_csv(Path(source))
-    save_into(data, output)
+    save_into_csv(data, output)
 
 
 @main.subcommand
@@ -208,7 +198,7 @@ def filter(attenders_csv: Path, class_members_csv: Path, output: Path):
         )
     ]
 
-    save_into(filtered, output)
+    save_into_csv(filtered, output)
 
 
 @main.subcommand
@@ -230,7 +220,7 @@ def fetch_members(
     if not output_dir.exists():
         output_dir.mkdir(parents=True)
 
-    save_into(students, output_dir / f'{class_id}.csv')
+    save_into_csv(students, output_dir / f'{class_id}.csv')
 
 
 if __name__ == '__main__':

@@ -1,4 +1,7 @@
 __pycache__
 *_cache
 *egg-info
-tests/generated/
+tests/assets/generated/
+tests/assets/turmas/
+*.aux
+*.log
