@@ -9,6 +9,8 @@ python = "^3.7"
 cagrex = { git = "https://github.com/caravelahc/cagrex.git", branch = "dev-class-members" }
 openpyxl = "^3.0"
 carl = "^0.0.7"
+toml = "^0.10.0"
+Jinja2 = "^2.10"
 
 [tool.poetry.dev-dependencies]
 pytest = "^3.0"

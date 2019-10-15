@@ -8,14 +8,18 @@ from dataclasses import dataclass
 from datetime import date as Date, time as Time
 from typing import List
 
-from cagrex.cagr import Weekday
+from cagrex.cagr import Class, Weekday
 
-from .types import StudentID
+from .sympla import Sheet
+
+
+StudentID = str
 
 
 @dataclass(frozen=True)
 class TimeBlock:
     '''An event time block (check module description).'''
+    title: str
     date: Date
     start: Time
     end: Time
@@ -35,5 +39,29 @@ def fits_into(weekday: Weekday, time: Time, block: TimeBlock) -> bool:
     )
 
 
-def filter_from_class(block: AttendanceBlock, class_: Class) -> List[AttendanceBlock]:
+def filter_from_class(
+    blocks: List[AttendanceBlock],
+    class_: Class
+) -> List[AttendanceBlock]:
+    return [
+        AttendanceBlock(
+            block=block.block,
+            attenders=[
+                student_id
+                for student_id in block.attenders
+                if student_id in class_.students
+            ],
+        )
+        for block in blocks
+    ]
+
+
+def filter_by_day(
+    blocks: List[AttendanceBlock],
+    date: Date
+) -> List[AttendanceBlock]:
+    return [block for block in blocks if block.block.date == date]
+
+
+def attendance_block_from_sheet(sheet: Sheet) -> AttendanceBlock:
     pass

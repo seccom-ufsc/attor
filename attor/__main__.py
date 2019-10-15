@@ -1,165 +1,57 @@
 '''Module for matching Sympla check-ins with UFSC's classes.'''
-from __future__ import annotations
-
-from dataclasses import is_dataclass
-from datetime import date as Date
+from datetime import date as Date, time as Time
 from getpass import getpass
 from pathlib import Path
-from typing import (
-    Any,
-    Iterable,
-    List,
-    NamedTuple,
-    Optional,
-    Sequence,
-    Tuple,
-)
-import csv
-import dataclasses
+from typing import Tuple
 
 from carl import command, REQUIRED
 from carl.carl import Command
 from cagrex import CAGR
-from cagrex.cagr import Student
-from openpyxl import load_workbook
-from openpyxl.cell.read_only import ReadOnlyCell
-from zipfile import BadZipfile
+
+from .blocks import attendance_block_from_sheet, filter_from_class
+from .db import Class, ClassNotFound, Database, Schedule, Students
+from .report import make_pdf
+from .sympla import Sheet
 
 
-class TypeInferError(Exception):
-    pass
+DEFAULT_DB = Path('./attor.db')
 
 
-class Attender(NamedTuple):
-    name: str
-    attended: bool = True
-    student_id: Optional[str] = None
-    cpf: Optional[str] = None
-    classes: List[str] = []
+def load_cagr_class(
+    subject_id: str,
+    class_id: str,
+    semester: str
+) -> Tuple[Class, Students]:
+    cagr = CAGR()
+    subject = cagr.subject()
 
+    classes = [c for c in subject.classes if c.class_id == class_id]
 
-class Ticket(NamedTuple):
-    number: int
-    ticket_id: str
-    name: str
-    surname: str
-    ticket_type: str
-    value: str
-    order_date: Date
-    order_id: str
-    email: str
-    state: str
-    checked_in: str
-    checkin_date: Optional[Date]
-    discount_code: str
-    pay_method: str
-    pdv: str
-    cpf: str
-    student_id: str
-    classes: List[str]
-
-    @staticmethod
-    def from_row(row) -> Ticket:
-        row = [
-            cell.value if cell.value else ''
-            for cell in row
-        ]
-        return Ticket(
-            int(row[0]),
-            row[1],
-            row[2],
-            row[3],
-            row[4],
-            row[5],
-            Date.fromisoformat(row[6].split(' ')[0]),
-            row[7],
-            row[8],
-            row[9],
-            row[10],
-            Date.fromisoformat(row[11].split(' ')[0]) if row[11] else None,
-            row[12],
-            row[13],
-            row[14],
-            row[15],
-            row[16],
-            row[17].split(','),
+    if not classes:
+        raise ClassNotFound(
+            f'No class {subject_id}-{class_id} in {semester} (CAGR)'
         )
 
+    class_ = classes[0]
 
-def iter_as_tickets(
-    sheet_range: Iterable[Tuple[ReadOnlyCell]]
-) -> Iterable[Ticket]:
-    for row in sheet_range:
-        if all(cell.value is None for cell in row):
-            return
+    print('**CAGR Login**')
+    cagr.login(input('UFSC ID: '), getpass('Password: '))
 
-        yield Ticket.from_row(row)
+    students: Students = {
+        s.student_id: s.name
+        for s in cagr.students_from_class(subject_id, class_id, semester)
+    }
 
-
-def strip_join(c: Tuple[str, str]) -> str:
-    return ' '.join(s.strip() for s in list(c)).strip()
-
-
-def retrieve_attenders(source: Path) -> List[Attender]:
-    wb = load_workbook(filename=source.resolve(), read_only=True)
-    sheet = wb.active
-
-    row_iter = sheet.iter_rows(min_row=9, min_col=1, max_col=18)
-    rows = [
-        (strip_join((ticket.name, ticket.surname)).title(),
-         ticket.checked_in == 'Sim',
-         ticket.student_id, )
-        for ticket in iter_as_tickets(row_iter)
-        if ticket.checked_in == 'Sim'
-    ]
-
-    return [Attender(*row) for row in rows]
-
-
-def attenders_from_class(source: Path, class_file: Path) -> List[Attender]:
-    attenders = data_from_csv(source)
-    students = data_from_csv(class_file)
-    student_ids = [student.student_id for student in students]
-
-    return [
-        attender for attender in attenders
-        if attender.student_id in student_ids
-    ]
-
-
-def infer_type_from_fields(fieldnames: Sequence[str]):
-    for _type in [Attender, Student]:
-        if fieldnames == list(_type._fields):
-            return _type
-    raise TypeInferError(f'Could infer from fieldnames: {fieldnames}')
-
-
-def data_from_csv(path: Path):
-    with open(path) as f:
-        reader = csv.DictReader(f)
-        _type = infer_type_from_fields(reader.fieldnames)
-        return [_type(**d) for d in reader]
-
-
-def save_into_csv(data: List[Any], output: Path):
-    if is_dataclass(data[0]):
-        fields = [field.name for field in dataclasses.fields(data[0])]
-        values_dict = (dataclasses.asdict(value) for value in data)
-    else:
-        fields = type(data[0])._fields
-        values_dict = (value._asdict() for value in data)
-
-    with open(output, 'w') as out:
-        writer = csv.DictWriter(
-            out,
-            [f.replace('_', '') for f in fields],
-            quoting=csv.QUOTE_NONE,
-        )
-        writer.writeheader()
-        writer.writerows(sorted([
-            {key.replace('_', ''): value for key, value in entry.items()}
-            for entry in values_dict
-        ], key=lambda x: x['name']))
+    return Class(
+        subject_id=subject_id,
+        class_id=class_id,
+        semester=semester,
+        students=[s for s in students.keys()],
+        schedule=[
+            Schedule(sched.weekday, sched.time, sched.duration)
+            for sched in class_.schedule
+        ],
+    ), students
 
 
 @command
@@ -168,51 +60,42 @@ def main(subcommand: Command = REQUIRED):
 
 
 @main.subcommand
-def convert(source: Path, output: Path):
-    try:
-        data = retrieve_attenders(Path(source))
-    except BadZipfile:
-        data = data_from_csv(Path(source))
-    save_into_csv(data, output)
+def add_block(
+    source: Path,
+    title: str,
+    date: Date,
+    start: Time,
+    end: Time,
+    db: Path = DEFAULT_DB
+):
+    '''Imports a time block as a Sympla attendance XLSX file into database.'''
+    database = Database.load(db)
+    sheet = Sheet.load(source, date, start, end)
+    sheet.name = title
+
+    database.add_attendances(attendance_block_from_sheet(sheet))
 
 
 @main.subcommand
-def filter(attenders_csv: Path, class_members_csv: Path, output: Path):
-    attenders = data_from_csv(attenders_csv)
-    classmembers = data_from_csv(class_members_csv)
-
-    filtered = [
-        attender
-        for attender in attenders
-        if any(
-            attender.student_id == member.student_id
-            for member in classmembers
-        )
-    ]
-
-    save_into_csv(filtered, output)
-
-
-@main.subcommand
-def fetch_members(
+def validate(
     subject_id: str,
     class_id: str,
     semester: str,
-    output_dir: Path
+    output_dir: Path,
+    db: Path = DEFAULT_DB
 ):
-    output_dir = Path(output_dir)
-    cagr = CAGR()
+    '''Validates attendances from a class and outputs into csv file. Class
+    members are cached into database.'''
+    database = Database.load(db)
+    try:
+        class_ = database.load_class(subject_id, class_id, semester)
+    except ClassNotFound:
+        class_, students = load_cagr_class(subject_id, class_id, semester)
+        database.add_students(students)
 
-    print('**CAGR Login**')
-    cagr.login(input('UFSC ID: '), getpass('Password: '))
-
-    students = cagr.students_from_class(subject_id, class_id, semester)
-
-    output_dir = output_dir / semester / subject_id
-    if not output_dir.exists():
-        output_dir.mkdir(parents=True)
-
-    save_into_csv(students, output_dir / f'{class_id}.csv')
+    attendances = filter_from_class(database.attendances, class_)
+    for block in attendances:
+        make_pdf(block, output_dir / block.block.title)
 
 
 if __name__ == '__main__':
