@@ -30,12 +30,6 @@ class TypeInferError(Exception):
     pass
 
 
-class Class(NamedTuple):
-    subject_id: str
-    class_id: str
-    semester: str
-
-
 class Attender(NamedTuple):
     name: str
     attended: bool = True
