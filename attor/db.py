@@ -1,7 +1,7 @@
 '''Management of attendance and classes databases.'''
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import date as Date, time as Time
 from pathlib import Path
 from typing import Dict, List
@@ -47,9 +47,10 @@ class Class:
 @dataclass
 class Database:
     path: Path
-    attendances: List[AttendanceBlock]
-    classes: List[Class]
-    students: Students
+    blocks: List[TimeBlock] = field(default_factory=list)
+    attendances: List[AttendanceBlock] = field(default_factory=list)
+    classes: List[Class] = field(default_factory=list)
+    students: Students = field(default_factory=dict)
 
     @staticmethod
     def load(path: Path) -> Database:
@@ -58,6 +59,7 @@ class Database:
 
         return Database(
             path=path,
+            blocks=[TimeBlock(**block) for block in data['blocks']],
             attendances=[
                 AttendanceBlock(
                     block=TimeBlock(**block['block']),
@@ -96,6 +98,8 @@ class Database:
         if dups:
             dup = dups[0]
             dup.attenders.extend(att.attenders)
+        else:
+            self.attendances.append(att)
 
     def add_students(self, students: Students):
         for id_, name in students.items():
@@ -104,10 +108,16 @@ class Database:
     def add_class(self, class_: Class):
         if any(class_ == stored_class for stored_class in self.classes):
             raise DuplicatedClassError(
-                f'Class {class_.class_id} already stored.'
+                f'Class {class_.class_id} already exists on database.'
             )
 
-        self.classes.append(class_)
+    def add_block(self, block: TimeBlock):
+        if any(block.title == stored.title for stored in self.blocks):
+            raise DuplicatedBlockError(
+                f'Time block {block.title} already exists on database.'
+            )
+
+        self.blocks.append(block)
 
     def students_with_ids(self, student_ids: List[StudentID]) -> Students:
         '''Returns all students with given ids.'''
@@ -152,7 +162,7 @@ if __name__ == '__main__':
         '14200743': 'Tiz',
         '15100643': 'Who?',
     }
-    db = Database(Path('test.db'), attendances, [], students)
+    db = Database(Path('test.db'), [], attendances, [], students)
     db.save()
     print('Loaded from Database:')
     print(Database.load(Path('test.db')))

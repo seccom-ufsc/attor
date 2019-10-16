@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date as Date, time as Time
+from datetime import date as Date, datetime as DateTime, time as Time
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
@@ -32,7 +32,7 @@ class Ticket:
     email: str
     state: str
     checked_in: str
-    checkin_date: Optional[Date]
+    checkin_date: Optional[DateTime]
     discount_code: str
     pay_method: str
     pdv: str
@@ -47,24 +47,26 @@ class Ticket:
             for cell in row
         ]
         return Ticket(
-            int(row[0]),
-            row[1],
-            row[2],
-            row[3],
-            row[4],
-            row[5],
-            Date.fromisoformat(row[6].split(' ')[0]),
-            row[7],
-            row[8],
-            row[9],
-            row[10],
-            Date.fromisoformat(row[11].split(' ')[0]) if row[11] else None,
-            row[12],
-            row[13],
-            row[14],
-            row[15],
-            row[16],
-            row[17].split(','),
+            number=int(row[0]),
+            ticket_id=row[1],
+            name=row[2],
+            surname=row[3],
+            ticket_type=row[4],
+            value=row[5],
+            order_date=Date.fromisoformat(row[6].split(' ')[0]),
+            order_id=row[7],
+            email=row[8],
+            state=row[9],
+            checked_in=row[10],
+            checkin_date=(
+                DateTime.fromisoformat(row[11]) if row[11] else None
+            ),
+            discount_code=row[12],
+            pay_method=row[13],
+            pdv=row[14],
+            cpf=str(row[15]),
+            student_id=str(row[16]),
+            classes=row[17].split(','),
         )
 
 
@@ -72,13 +74,30 @@ class Ticket:
 class Sheet:
     name: str
     date: Date
-    start: Time
-    end: Time
+    first_checkin: Time
+    last_checkin: Time
     tickets: List[Ticket]
 
     @staticmethod
-    def load(path: Path, date: Date, start: Time, end: Time) -> Sheet:
-        pass
+    def load(path: Path, name: str) -> Sheet:
+        wb = load_workbook(filename=path.resolve(), read_only=True)
+        sheet = wb.active
+
+        tickets = extract_tickets(sheet)
+
+        checkins = sorted([
+            ticket.checkin_date
+            for ticket in tickets
+            if ticket.checkin_date is not None
+        ])
+
+        return Sheet(
+            name=name,
+            date=checkins[0].date(),
+            first_checkin=checkins[0].time(),
+            last_checkin=checkins[-1].time(),
+            tickets=tickets,
+        )
 
 
 def iter_as_tickets(
@@ -93,6 +112,11 @@ def iter_as_tickets(
 
 def strip_join(c: Tuple[str, str]) -> str:
     return ' '.join(s.strip() for s in list(c)).strip()
+
+
+def extract_tickets(sheet) -> List[Ticket]:
+    row_iter = sheet.iter_rows(min_row=9, min_col=1, max_col=18)
+    return list(iter_as_tickets(row_iter))
 
 
 def retrieve_attenders(source: Path) -> List[Attender]:

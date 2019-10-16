@@ -5,7 +5,12 @@ A full attendance is represented by an AttendanceBlock, which is an aggregate
 of a TimeBlock and a list of attending students.
 '''
 from dataclasses import dataclass
-from datetime import date as Date, time as Time
+from datetime import (
+    date as Date,
+    datetime as DateTime,
+    time as Time,
+    timedelta as TimeDelta,
+)
 from typing import List
 
 from cagrex.cagr import Class, Weekday
@@ -14,6 +19,10 @@ from .sympla import Sheet
 
 
 StudentID = str
+
+
+class NoFittingBlock(Exception):
+    pass
 
 
 @dataclass(frozen=True)
@@ -63,5 +72,40 @@ def filter_by_day(
     return [block for block in blocks if block.block.date == date]
 
 
+def block_for_timespan(
+    start: Time,
+    end: Time,
+    blocks: List[TimeBlock],
+    threshold: Time = Time(0, 15, 0),
+) -> TimeBlock:
+    def diff(a: Time, b: Time) -> Time:
+        a_ = DateTime.combine(Date.today(), a)
+        b_ = TimeDelta(minutes=b.minute)
+        return (a_ - b_).time()
+
+    def sum_(a: Time, b: Time) -> Time:
+        a_ = DateTime.combine(Date.today(), a)
+        b_ = TimeDelta(minutes=b.minute)
+        return (a_ + b_).time()
+
+    for block in blocks:
+        s, e = block.start, block.end
+        if start >= diff(s, threshold) and end <= sum_(e, threshold):
+            print(f'Fit into {block}')
+            return block
+
+    raise NoFittingBlock(
+        f'No block between {start} and {end} found.'
+    )
+
+
 def attendance_block_from_sheet(sheet: Sheet) -> AttendanceBlock:
-    pass
+    return AttendanceBlock(
+        block=TimeBlock(
+            title=sheet.name,
+            date=sheet.date,
+            start=sheet.first_checkin,
+            end=sheet.last_checkin,
+        ),
+        attenders=[ticket.student_id for ticket in sheet.tickets]
+    )

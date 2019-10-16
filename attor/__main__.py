@@ -8,13 +8,26 @@ from carl import command, REQUIRED
 from carl.carl import Command
 from cagrex import CAGR
 
-from .blocks import attendance_block_from_sheet, filter_from_class
+from .blocks import (
+    attendance_block_from_sheet,
+    block_for_timespan,
+    filter_from_class,
+    AttendanceBlock,
+    TimeBlock,
+)
 from .db import Class, ClassNotFound, Database, Schedule, Students
 from .report import make_pdf
 from .sympla import Sheet
 
 
 DEFAULT_DB = Path('./attor.db')
+
+
+def load_db_or_create(path: Path) -> Database:
+    try:
+        return Database.load(path)
+    except FileNotFoundError:
+        return Database(path=path)
 
 
 def load_cagr_class(
@@ -61,19 +74,50 @@ def main(subcommand: Command = REQUIRED):
 
 @main.subcommand
 def add_block(
-    source: Path,
     title: str,
-    date: Date,
-    start: Time,
-    end: Time,
-    db: Path = DEFAULT_DB
+    date: str,
+    start: str,
+    end: str,
+    db: Path = DEFAULT_DB,
 ):
     '''Imports a time block as a Sympla attendance XLSX file into database.'''
-    database = Database.load(db)
-    sheet = Sheet.load(source, date, start, end)
-    sheet.name = title
+    date_ = Date.fromisoformat(date)
+    start_ = Time.fromisoformat(start)
+    end_ = Time.fromisoformat(end)
 
-    database.add_attendances(attendance_block_from_sheet(sheet))
+    database = load_db_or_create(db)
+    database.add_block(TimeBlock(
+        title=title,
+        date=date_,
+        start=start_,
+        end=end_,
+    ))
+    database.save()
+
+
+@main.subcommand
+def import_attendances(
+    source: Path,
+    title: str,
+    db: Path = DEFAULT_DB,
+):
+    '''Imports a time block as a Sympla attendance XLSX file into database.'''
+    database = load_db_or_create(db)
+    sheet = Sheet.load(source, name=title)
+
+    attendances = attendance_block_from_sheet(sheet)
+    attendances = AttendanceBlock(
+        block=block_for_timespan(
+            sheet.first_checkin,
+            sheet.last_checkin,
+            database.blocks,
+        ),
+        attenders=attendances.attenders,
+    )
+
+    database.add_attendances(attendances)
+    database.save()
+    print('Done.')
 
 
 @main.subcommand
@@ -86,7 +130,7 @@ def validate(
 ):
     '''Validates attendances from a class and outputs into csv file. Class
     members are cached into database.'''
-    database = Database.load(db)
+    database = load_db_or_create(db)
     try:
         class_ = database.load_class(subject_id, class_id, semester)
     except ClassNotFound:
@@ -95,7 +139,7 @@ def validate(
 
     attendances = filter_from_class(database.attendances, class_)
     for block in attendances:
-        make_pdf(block, output_dir / block.block.title)
+        make_pdf(block, students, output_dir / block.block.title)
 
 
 if __name__ == '__main__':
