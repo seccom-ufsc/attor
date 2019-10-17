@@ -36,7 +36,7 @@ def load_cagr_class(
     semester: str
 ) -> Tuple[Class, Students]:
     cagr = CAGR()
-    subject = cagr.subject()
+    subject = cagr.subject(subject_id, semester)
 
     classes = [c for c in subject.classes if c.class_id == class_id]
 
@@ -132,10 +132,19 @@ def validate(
     members are cached into database.'''
     database = load_db_or_create(db)
     try:
+        print(f'Looking for cache...')
         class_ = database.load_class(subject_id, class_id, semester)
+        students = database.students_with_ids(class_.students)
+        print(f'Class found in cache.')
     except ClassNotFound:
+        print(
+            f'Class {subject_id}-{class_id} not cached. Loading from CAGR...'
+        )
         class_, students = load_cagr_class(subject_id, class_id, semester)
         database.add_students(students)
+        database.add_class(class_)
+
+    database.save()
 
     attendances = filter_from_class(database.attendances, class_)
     for block in attendances:

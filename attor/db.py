@@ -111,6 +111,8 @@ class Database:
                 f'Class {class_.class_id} already exists on database.'
             )
 
+        self.classes.append(class_)
+
     def add_block(self, block: TimeBlock):
         if any(block.title == stored.title for stored in self.blocks):
             raise DuplicatedBlockError(
