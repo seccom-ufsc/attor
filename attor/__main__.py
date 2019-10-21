@@ -11,7 +11,8 @@ from cagrex import CAGR
 from .blocks import (
     attendance_block_from_sheet,
     block_for_timespan,
-    filter_from_class,
+    filter_class_schedule,
+    keep_only_students,
     AttendanceBlock,
     TimeBlock,
 )
@@ -98,12 +99,12 @@ def add_block(
 @main.subcommand
 def import_attendances(
     source: Path,
-    title: str,
+    threshold: int = 15,
     db: Path = DEFAULT_DB,
 ):
     '''Imports a time block as a Sympla attendance XLSX file into database.'''
     database = load_db_or_create(db)
-    sheet = Sheet.load(source, name=title)
+    sheet = Sheet.load(source)
 
     attendances = attendance_block_from_sheet(sheet)
     attendances = AttendanceBlock(
@@ -111,6 +112,7 @@ def import_attendances(
             sheet.first_checkin,
             sheet.last_checkin,
             database.blocks,
+            threshold=Time(0, threshold, 0),
         ),
         attenders=attendances.attenders,
     )
@@ -146,7 +148,8 @@ def validate(
 
     database.save()
 
-    attendances = filter_from_class(database.attendances, class_)
+    attendances = filter_class_schedule(database.attendances, class_)
+    attendances = keep_only_students(database.attendances, class_)
     for block in attendances:
         make_pdf(block, students, output_dir / block.block.title)
 

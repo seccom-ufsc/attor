@@ -79,7 +79,7 @@ class Sheet:
     tickets: List[Ticket]
 
     @staticmethod
-    def load(path: Path, name: str) -> Sheet:
+    def load(path: Path, name: str = None) -> Sheet:
         wb = load_workbook(filename=path.resolve(), read_only=True)
         sheet = wb.active
 
@@ -92,7 +92,7 @@ class Sheet:
         ])
 
         return Sheet(
-            name=name,
+            name=name or sheet.title,
             date=checkins[0].date(),
             first_checkin=checkins[0].time(),
             last_checkin=checkins[-1].time(),

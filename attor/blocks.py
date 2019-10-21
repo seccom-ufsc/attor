@@ -11,7 +11,8 @@ from datetime import (
     time as Time,
     timedelta as TimeDelta,
 )
-from typing import List
+from pathlib import Path
+from typing import List, Union
 
 from cagrex.cagr import Class, Weekday
 
@@ -48,10 +49,27 @@ def fits_into(weekday: Weekday, time: Time, block: TimeBlock) -> bool:
     )
 
 
-def filter_from_class(
+def filter_class_schedule(
+    blocks: List[AttendanceBlock],
+    class_: Class,
+) -> List[AttendanceBlock]:
+    '''Returns which blocks fit into given class's schedule.'''
+    return [
+        block
+        for block in blocks
+        if any(
+            fits_into(sched.weekday, sched.time, block.block)
+            for sched in class_.schedule
+        )
+    ]
+
+
+def keep_only_students(
     blocks: List[AttendanceBlock],
     class_: Class
 ) -> List[AttendanceBlock]:
+    '''Returns back each block, but with attenders filtered by who is in given
+    class.'''
     return [
         AttendanceBlock(
             block=block.block,
@@ -99,7 +117,10 @@ def block_for_timespan(
     )
 
 
-def attendance_block_from_sheet(sheet: Sheet) -> AttendanceBlock:
+def attendance_block_from_sheet(sheet: Union[Sheet, Path]) -> AttendanceBlock:
+    if isinstance(sheet, Path):
+        sheet = Sheet.load(sheet)
+
     return AttendanceBlock(
         block=TimeBlock(
             title=sheet.name,
