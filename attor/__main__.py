@@ -2,6 +2,7 @@
 from datetime import date as Date, time as Time
 from getpass import getpass
 from pathlib import Path
+from pprint import pformat
 from typing import Tuple
 
 from carl import command, REQUIRED
@@ -36,6 +37,7 @@ def load_cagr_class(
     class_id: str,
     semester: str
 ) -> Tuple[Class, Students]:
+    '''Accesses CAGR and fetches class information.'''
     cagr = CAGR()
     subject = cagr.subject(subject_id, semester)
 
@@ -148,8 +150,10 @@ def validate(
 
     database.save()
 
+    print(f'All attendances:\n    {pformat(database.attendances)}')
     attendances = filter_class_schedule(database.attendances, class_)
-    attendances = keep_only_students(database.attendances, class_)
+    print(f'Blocks considering class schedule:\n    {pformat(attendances)}')
+    attendances = keep_only_students(attendances, class_)
     for block in attendances:
         make_pdf(block, students, output_dir / block.block.title)
 

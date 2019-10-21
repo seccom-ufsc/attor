@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import date as Date, time as Time
 from pathlib import Path
 from typing import Dict, List
+import re
 
 from cagrex.cagr import Weekday
 import toml
@@ -44,6 +45,19 @@ class Class:
     schedule: List[Schedule]
 
 
+class InvalidWeekdayFormat(Exception):
+    pass
+
+
+def _weekday_from_str(s: str) -> Weekday:
+    match = re.compile(r'<Weekday.\w+: (\d+)>').match(s)
+    if match is None:
+        raise InvalidWeekdayFormat(f'Could not build weekday from {s}')
+    x = Weekday(int(match.groups()[0]))
+    print(f'{s} became {x}')
+    return x
+
+
 @dataclass
 class Database:
     path: Path
@@ -63,7 +77,7 @@ class Database:
             attendances=[
                 AttendanceBlock(
                     block=TimeBlock(**block['block']),
-                    attenders=block['attenders']
+                    attenders=sorted(block['attenders'])
                 )
                 for block in data['attendances']
             ],
@@ -74,7 +88,11 @@ class Database:
                     semester=class_['semester'],
                     students=class_['students'],
                     schedule=[
-                        Schedule(**sched)
+                        Schedule(
+                            weekday=_weekday_from_str(sched['weekday']),
+                            time=sched['time'],
+                            credits=sched['credits'],
+                        )
                         for sched in class_['schedule']
                     ]
                 ) for class_ in data['classes']

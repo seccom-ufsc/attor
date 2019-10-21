@@ -12,6 +12,7 @@ from datetime import (
     timedelta as TimeDelta,
 )
 from pathlib import Path
+from textwrap import dedent
 from typing import List, Union
 
 from cagrex.cagr import Class, Weekday
@@ -43,10 +44,19 @@ class AttendanceBlock:
 
 
 def fits_into(weekday: Weekday, time: Time, block: TimeBlock) -> bool:
-    return (
-        Weekday(block.date.weekday()) == weekday
-        and time >= block.start and time <= block.end
-    )
+    '''Checks if given weekday and time fits into given timeblock.'''
+    block_weekday = Weekday(block.date.isoweekday() + 1)
+    weekday_fits = block_weekday == weekday
+    time_fits = time >= block.start and time <= block.end
+    checks = weekday_fits and time_fits
+
+    print(dedent(f'''
+    ____?= ({weekday}, {time}) fits into {block}?
+        --> Weekday: {block_weekday} == {weekday} ? -> {weekday_fits}
+        --> Time   : {time} in {block.start, block.end} ? -> {time_fits}
+        --> {checks}
+    '''))
+    return checks
 
 
 def filter_class_schedule(
@@ -54,6 +64,7 @@ def filter_class_schedule(
     class_: Class,
 ) -> List[AttendanceBlock]:
     '''Returns which blocks fit into given class's schedule.'''
+    print(f'Class {class_.subject_id}-{class_.class_id} schedules: {class_.schedule}')
     return [
         block
         for block in blocks
