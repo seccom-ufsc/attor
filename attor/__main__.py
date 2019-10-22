@@ -2,7 +2,7 @@
 from datetime import date as Date, time as Time
 from getpass import getpass
 from pathlib import Path
-from pprint import pformat
+from pprint import pprint
 from typing import Tuple
 
 from carl import command, REQUIRED
@@ -152,9 +152,18 @@ def validate(
 
     database.save()
 
-    print(f'All attendances:\n    {pformat(database.attendances)}')
+    print(f'All attendances:')
+    for att in database.attendances:
+        print('    --- ')
+        print('    ', end='')
+        pprint(att)
+
     attendances = filter_class_schedule(database.attendances, class_)
-    print(f'Blocks considering class schedule:\n    {pformat(attendances)}')
+    print(f'Blocks considering class schedule:\n    ', end='')
+    pprint(attendances)
+
+    print('Students in class:')
+    pprint(sorted(class_.students))
     attendances = keep_only_students(attendances, class_)
     for block in attendances:
         make_pdf(block, students, output_dir / block.block.title)

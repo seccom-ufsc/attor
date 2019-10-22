@@ -53,9 +53,7 @@ def _weekday_from_str(s: str) -> Weekday:
     match = re.compile(r'<Weekday.\w+: (\d+)>').match(s)
     if match is None:
         raise InvalidWeekdayFormat(f'Could not build weekday from {s}')
-    x = Weekday(int(match.groups()[0]))
-    print(f'{s} became {x}')
-    return x
+    return Weekday(int(match.groups()[0]))
 
 
 @dataclass

@@ -37,7 +37,7 @@ class Ticket:
     pay_method: str
     pdv: str
     cpf: str
-    student_id: str
+    student_id: Optional[str]
     classes: List[str]
 
     @staticmethod
@@ -65,7 +65,7 @@ class Ticket:
             pay_method=row[13],
             pdv=row[14],
             cpf=str(row[15]),
-            student_id=str(row[16]),
+            student_id=str(int(row[16])) if row[16] else None,
             classes=row[17].split(','),
         )
 
