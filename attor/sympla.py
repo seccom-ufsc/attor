@@ -31,7 +31,7 @@ class Ticket:
     order_id: str
     email: str
     state: str
-    checked_in: str
+    checked_in: bool
     checkin_date: Optional[DateTime]
     discount_code: str
     pay_method: str
@@ -57,7 +57,7 @@ class Ticket:
             order_id=row[7],
             email=row[8],
             state=row[9],
-            checked_in=row[10],
+            checked_in=row[10] == 'Sim',
             checkin_date=(
                 DateTime.fromisoformat(row[11]) if row[11] else None
             ),
@@ -74,8 +74,8 @@ class Ticket:
 class Sheet:
     name: str
     date: Date
-    first_checkin: Time
-    last_checkin: Time
+    start: Time
+    end: Time
     tickets: List[Ticket]
 
     @staticmethod
@@ -85,17 +85,14 @@ class Sheet:
 
         tickets = extract_tickets(sheet)
 
-        checkins = sorted([
-            ticket.checkin_date
-            for ticket in tickets
-            if ticket.checkin_date is not None
-        ])
+        start, end = map(lambda x: x[0].value, sheet['A6:A7'])
+        date = start.date
 
         return Sheet(
             name=name or sheet.title,
-            date=checkins[0].date(),
-            first_checkin=checkins[0].time(),
-            last_checkin=checkins[-1].time(),
+            date=date(),
+            start=start.time(),
+            end=end.time(),
             tickets=tickets,
         )
 

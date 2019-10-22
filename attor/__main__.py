@@ -111,13 +111,15 @@ def import_attendances(
     attendances = attendance_block_from_sheet(sheet)
     attendances = AttendanceBlock(
         block=block_for_timespan(
-            sheet.first_checkin,
-            sheet.last_checkin,
+            sheet.date,
+            sheet.start,
+            sheet.end,
             database.blocks,
             threshold=Time(0, threshold, 0),
         ),
         attenders=attendances.attenders,
     )
+    print(f'Fit into {attendances.block}')
 
     database.add_attendances(attendances)
     database.save()

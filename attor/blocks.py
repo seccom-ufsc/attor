@@ -64,7 +64,10 @@ def filter_class_schedule(
     class_: Class,
 ) -> List[AttendanceBlock]:
     '''Returns which blocks fit into given class's schedule.'''
-    print(f'Class {class_.subject_id}-{class_.class_id} schedules: {class_.schedule}')
+
+    print(f'Class {class_.subject_id}-{class_.class_id}'
+          f' schedules: {class_.schedule}')
+
     return [
         block
         for block in blocks
@@ -102,12 +105,13 @@ def filter_by_day(
 
 
 def block_for_timespan(
+    date: Date,
     start: Time,
     end: Time,
     blocks: List[TimeBlock],
     threshold: Time = Time(0, 15, 0),
 ) -> TimeBlock:
-    def diff(a: Time, b: Time) -> Time:
+    def sub_(a: Time, b: Time) -> Time:
         a_ = DateTime.combine(Date.today(), a)
         b_ = TimeDelta(minutes=b.minute)
         return (a_ - b_).time()
@@ -119,8 +123,11 @@ def block_for_timespan(
 
     for block in blocks:
         s, e = block.start, block.end
-        if start >= diff(s, threshold) and end <= sum_(e, threshold):
-            print(f'Fit into {block}')
+        if (
+            block.date.weekday() == date.weekday()
+            and start >= sub_(s, threshold)
+            and end <= sum_(e, threshold)
+        ):
             return block
 
     raise NoFittingBlock(
@@ -136,8 +143,12 @@ def attendance_block_from_sheet(sheet: Union[Sheet, Path]) -> AttendanceBlock:
         block=TimeBlock(
             title=sheet.name,
             date=sheet.date,
-            start=sheet.first_checkin,
-            end=sheet.last_checkin,
+            start=sheet.start,
+            end=sheet.end,
         ),
-        attenders=[ticket.student_id for ticket in sheet.tickets]
+        attenders=[
+            ticket.student_id
+            for ticket in sheet.tickets
+            if ticket.checked_in
+        ]
     )
