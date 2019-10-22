@@ -152,21 +152,27 @@ def validate(
 
     database.save()
 
-    print(f'All attendances:')
-    for att in database.attendances:
-        print('    --- ')
-        print('    ', end='')
-        pprint(att)
-
     attendances = filter_class_schedule(database.attendances, class_)
-    print(f'Blocks considering class schedule:\n    ', end='')
-    pprint(attendances)
+    print(f'\n==== Blocks considering class schedule:')
+    for sched, attlist in attendances.items():
+        print('    --- ')
+        print(f'    Blocks for {sched}:')
+        for att in attlist:
+            print('        --- ')
+            print(f'        {att.block.title}:')
+            print(f'           Start: {att.block.start}')
+            print(f'           End: {att.block.end}')
+            print(f'           Attenders: {sorted(list(att.attenders))}')
 
     print('Students in class:')
     pprint(sorted(class_.students))
-    attendances = keep_only_students(attendances, class_)
-    for block in attendances:
-        make_pdf(block, students, output_dir / block.block.title)
+
+    attendances = {
+        sched: keep_only_students(att, class_)
+        for sched, att in attendances.items()
+    }
+
+    make_pdf(attendances, students, output_dir)  # / att_item.block.title)
 
 
 if __name__ == '__main__':

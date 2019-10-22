@@ -7,17 +7,16 @@ of a TimeBlock and a list of attending students.
 from dataclasses import dataclass
 from datetime import (
     date as Date,
-    datetime as DateTime,
     time as Time,
     timedelta as TimeDelta,
 )
 from pathlib import Path
-from pprint import pprint
-from typing import List, Union
+from typing import Dict, List, Set, Union
 
 from cagrex.cagr import Class, Weekday
 
 from .sympla import Sheet
+from .utils import advance_time, rewind_time
 
 
 StudentID = str
@@ -25,6 +24,13 @@ StudentID = str
 
 class NoFittingBlock(Exception):
     pass
+
+
+@dataclass(unsafe_hash=True)
+class Schedule:
+    weekday: Weekday
+    time: Time
+    credits: int
 
 
 @dataclass(frozen=True)
@@ -40,34 +46,36 @@ class TimeBlock:
 class AttendanceBlock:
     '''An attendance list in an specific TimeBlock.'''
     block: TimeBlock
-    attenders: List[StudentID]
+    attenders: Set[StudentID]
 
 
-def fits_into(weekday: Weekday, time: Time, block: TimeBlock) -> bool:
+def fits_into(sched: Schedule, block: TimeBlock) -> bool:
     '''Checks if given weekday and time fits into given timeblock.'''
     block_weekday = Weekday(block.date.isoweekday() + 1)
-    weekday_fits = block_weekday == weekday
-    time_fits = time >= block.start and time <= block.end
+    weekday_fits = block_weekday == sched.weekday
+
+    start = sched.time
+    end = advance_time(sched.time, TimeDelta(minutes=sched.credits * 50))
+
+    time_fits = (
+        (start >= block.start and start <= block.end)
+        or (end >= block.start and end <= block.end)
+    )
     return weekday_fits and time_fits
 
 
 def filter_class_schedule(
     blocks: List[AttendanceBlock],
     class_: Class,
-) -> List[AttendanceBlock]:
+) -> Dict[Schedule, List[AttendanceBlock]]:
     '''Returns which blocks fit into given class's schedule.'''
-
-    print(f'Class {class_.subject_id}-{class_.class_id} schedules:')
-    pprint(class_.schedule)
-
-    return [
-        block
-        for block in blocks
-        if any(
-            fits_into(sched.weekday, sched.time, block.block)
-            for sched in class_.schedule
-        )
-    ]
+    return {
+        sched: [
+            block
+            for block in blocks
+            if fits_into(sched, block.block)
+        ] for sched in class_.schedule
+    }
 
 
 def keep_only_students(
@@ -79,11 +87,11 @@ def keep_only_students(
     return [
         AttendanceBlock(
             block=block.block,
-            attenders=[
+            attenders={
                 student_id
                 for student_id in block.attenders
                 if student_id in class_.students
-            ],
+            },
         )
         for block in blocks
     ]
@@ -103,27 +111,17 @@ def block_for_timespan(
     blocks: List[TimeBlock],
     threshold: Time = Time(0, 15, 0),
 ) -> TimeBlock:
-    def sub_(a: Time, b: Time) -> Time:
-        a_ = DateTime.combine(Date.today(), a)
-        b_ = TimeDelta(minutes=b.minute)
-        return (a_ - b_).time()
-
-    def sum_(a: Time, b: Time) -> Time:
-        a_ = DateTime.combine(Date.today(), a)
-        b_ = TimeDelta(minutes=b.minute)
-        return (a_ + b_).time()
-
     for block in blocks:
         s, e = block.start, block.end
         if (
             block.date.weekday() == date.weekday()
-            and start >= sub_(s, threshold)
-            and end <= sum_(e, threshold)
+            and start >= rewind_time(s, threshold)
+            and end <= advance_time(e, threshold)
         ):
             return block
 
     raise NoFittingBlock(
-        f'No block between {start} and {end} found.'
+        f'No block between {start} and {end} found for day {date}.'
     )
 
 
@@ -138,9 +136,9 @@ def attendance_block_from_sheet(sheet: Union[Sheet, Path]) -> AttendanceBlock:
             start=sheet.start,
             end=sheet.end,
         ),
-        attenders=[
+        attenders={
             ticket.student_id
             for ticket in sheet.tickets
             if ticket.checked_in and ticket.student_id is not None
-        ]
+        }
     )

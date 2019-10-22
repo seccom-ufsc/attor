@@ -114,19 +114,3 @@ def strip_join(c: Tuple[str, str]) -> str:
 def extract_tickets(sheet) -> List[Ticket]:
     row_iter = sheet.iter_rows(min_row=9, min_col=1, max_col=18)
     return list(iter_as_tickets(row_iter))
-
-
-def retrieve_attenders(source: Path) -> List[Attender]:
-    wb = load_workbook(filename=source.resolve(), read_only=True)
-    sheet = wb.active
-
-    row_iter = sheet.iter_rows(min_row=9, min_col=1, max_col=18)
-    rows = [
-        (strip_join((ticket.name, ticket.surname)).title(),
-         ticket.checked_in == 'Sim',
-         ticket.student_id, )
-        for ticket in iter_as_tickets(row_iter)
-        if ticket.checked_in == 'Sim'
-    ]
-
-    return [Attender(*row) for row in rows]

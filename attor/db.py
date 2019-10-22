@@ -10,7 +10,7 @@ import re
 from cagrex.cagr import Weekday
 import toml
 
-from .blocks import AttendanceBlock, TimeBlock
+from .blocks import AttendanceBlock, Schedule, TimeBlock
 
 
 StudentID = str
@@ -27,13 +27,6 @@ class DuplicatedClassError(Exception):
 
 class ClassNotFound(Exception):
     pass
-
-
-@dataclass
-class Schedule:
-    weekday: Weekday
-    time: Time
-    credits: int
 
 
 @dataclass
@@ -75,7 +68,7 @@ class Database:
             attendances=[
                 AttendanceBlock(
                     block=TimeBlock(**block['block']),
-                    attenders=sorted(block['attenders'])
+                    attenders=set(block['attenders'])
                 )
                 for block in data['attendances']
             ],
@@ -113,7 +106,7 @@ class Database:
 
         if dups:
             dup = dups[0]
-            dup.attenders.extend(att.attenders)
+            dup.attenders.update(att.attenders)
         else:
             self.attendances.append(att)
 
@@ -172,7 +165,7 @@ if __name__ == '__main__':
                 start=Time(10, 15),
                 end=Time(12, 30),
             ),
-            attenders=[]
+            attenders=set()
         )
     ]
 
