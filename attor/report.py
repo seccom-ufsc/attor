@@ -2,7 +2,7 @@
 from functools import reduce
 from pathlib import Path
 from textwrap import dedent
-from typing import Dict, List
+from typing import Dict, List, Optional
 import csv
 import operator
 
@@ -19,7 +19,7 @@ def make_sched_title(sched: Schedule) -> str:
 def timeblock_for_sched(
     sched: Schedule,
     attlist: List[AttendanceBlock],
-) -> TimeBlock:
+) -> Optional[TimeBlock]:
     title = make_sched_title(sched)
     try:
         return TimeBlock(
@@ -29,8 +29,36 @@ def timeblock_for_sched(
             end=schedule_end(sched),
         )
     except IndexError:
-        print(f'Attlist for {title}: {attlist}')
-        exit(1)
+        print(f'[No time found] Attlist for {title}: {attlist}')
+        return None
+
+
+def attblock_for_sched(
+    sched: Schedule,
+    attlist: List[AttendanceBlock]
+) -> Optional[AttendanceBlock]:
+    block = timeblock_for_sched(sched, attlist)
+    return AttendanceBlock(
+        block=block,
+        attenders=reduce(
+            operator.or_,
+            (b.attenders for b in attlist),
+            set()
+        )
+    ) if block else None
+
+
+def attdict_for_sched(
+    atts: Dict[Schedule, List[AttendanceBlock]]
+) -> Dict[Schedule, AttendanceBlock]:
+    attdict = {}
+
+    for sched, attlist in atts.items():
+        attblock = attblock_for_sched(sched, attlist)
+        if attblock:
+            attdict[sched] = attblock
+
+    return attdict
 
 
 def make_pdf(
@@ -39,16 +67,7 @@ def make_pdf(
     output_dir: Path,
     class_name: str,
 ):
-    merged_atts = {
-        sched: AttendanceBlock(
-            block=timeblock_for_sched(sched, attlist),
-            attenders=reduce(
-                operator.or_,
-                (b.attenders for b in attlist),
-                set()
-            )
-        ) for sched, attlist in atts.items()
-    }
+    merged_atts = attdict_for_sched(atts)
 
     if not output_dir.exists():
         output_dir.mkdir()

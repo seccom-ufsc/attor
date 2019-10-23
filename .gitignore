@@ -5,3 +5,4 @@ tests/assets/generated/
 tests/assets/turmas/
 *.aux
 *.log
+atts/

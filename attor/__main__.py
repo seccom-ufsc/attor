@@ -2,8 +2,7 @@
 from datetime import date as Date, time as Time
 from getpass import getpass
 from pathlib import Path
-from pprint import pprint
-from typing import Tuple
+from typing import Optional, Tuple
 
 from carl import command, REQUIRED
 from carl.carl import Command
@@ -35,7 +34,9 @@ def load_db_or_create(path: Path) -> Database:
 def load_cagr_class(
     subject_id: str,
     class_id: str,
-    semester: str
+    semester: str,
+    ufscid: Optional[str] = None,
+    passwd: Optional[str] = None,
 ) -> Tuple[Class, Students]:
     '''Accesses CAGR and fetches class information.'''
     cagr = CAGR()
@@ -51,7 +52,12 @@ def load_cagr_class(
     class_ = classes[0]
 
     print('**CAGR Login**')
-    cagr.login(input('UFSC ID: '), getpass('Password: '))
+    if not ufscid:
+        ufscid = input('UFSC ID: ')
+    if not passwd:
+        passwd = getpass('Password: ')
+
+    cagr.login(ufscid, passwd)
 
     students: Students = {
         s.student_id: s.name
@@ -119,7 +125,7 @@ def import_attendances(
         ),
         attenders=attendances.attenders,
     )
-    print(f'Fit into {attendances.block}')
+    print(f'Fit into {attendances.block}', end='')
 
     database.add_attendances(attendances)
     database.save()
@@ -132,7 +138,9 @@ def validate(
     class_id: str,
     semester: str,
     output_dir: Path,
-    db: Path = DEFAULT_DB
+    db: Path = DEFAULT_DB,
+    ufscid: str = None,
+    passwd: str = None,
 ):
     '''Validates attendances from a class and outputs into csv file. Class
     members are cached into database.'''
@@ -146,27 +154,15 @@ def validate(
         print(
             f'Class {subject_id}-{class_id} not cached. Loading from CAGR...'
         )
-        class_, students = load_cagr_class(subject_id, class_id, semester)
+        class_, students = load_cagr_class(
+            subject_id, class_id, semester, ufscid, passwd
+        )
         database.add_students(students)
         database.add_class(class_)
 
     database.save()
 
     attendances = filter_class_schedule(database.attendances, class_)
-    print(f'\n==== Blocks considering class schedule:')
-    for sched, attlist in attendances.items():
-        print('    --- ')
-        print(f'    Blocks for {sched}:')
-        for att in attlist:
-            print('        --- ')
-            print(f'        {att.block.title}:')
-            print(f'           Start: {att.block.start}')
-            print(f'           End: {att.block.end}')
-            print(f'           Attenders: {sorted(list(att.attenders))}')
-
-    print('Students in class:')
-    pprint(sorted(class_.students))
-
     attendances = {
         sched: keep_only_students(att, class_)
         for sched, att in attendances.items()
