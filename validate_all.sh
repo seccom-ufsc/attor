@@ -18,7 +18,9 @@ function validate() {
     local subject=$1
     local class=$2
     local semester=$3
-    echo python -m attor validate $subject $class $SEMESTER ${OUTPUT} --ufscid ${UFSCID} --passwd ${APASSWD}
+    cmd="python -m attor validate $subject $class $SEMESTER ${OUTPUT} --ufscid ${UFSCID}"
+    echo ${cmd}
+    ${cmd} --passwd ${PASSWD}
 }
 
 # 1ª Fase

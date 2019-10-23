@@ -54,6 +54,8 @@ def load_cagr_class(
     print('**CAGR Login**')
     if not ufscid:
         ufscid = input('UFSC ID: ')
+    else:
+        print(f'Using UFSCID: {ufscid}')
     if not passwd:
         passwd = getpass('Password: ')
 
