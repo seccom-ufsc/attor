@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "attor"
-version = "0.1.3"
+version = "1.0.0"
 description = "UFSC's CAGR Attendance Validator from Sympla check-in list."
 authors = ["João Paulo Taylor Ienczak Zanette <jpaulotiz@gmail.com>"]
 
@@ -9,6 +9,8 @@ python = "^3.7"
 cagrex = { git = "https://github.com/caravelahc/cagrex.git", branch = "dev-class-members" }
 openpyxl = "^3.0"
 carl = "^0.0.7"
+toml = "^0.10.0"
+Jinja2 = "^2.10"
 
 [tool.poetry.dev-dependencies]
 pytest = "^3.0"

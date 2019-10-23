@@ -1,13 +1,5 @@
 from pathlib import Path
-from attor import (
-    attenders_from_class,
-    retrieve_attenders,
-    data_from_csv,
-    convert,
-    Attender,
-    Class,
-    Student,
-)
+from attor.blocks import attendance_block_from_sheet
 
 SEMESTER = '20192'
 EXPECTED_NAMES = [
@@ -54,59 +46,9 @@ EXPECTED_NAMES = [
 
 
 def test_retrieve_from_xlsx():
-    attenders = retrieve_attenders(
+    attenders = attendance_block_from_sheet(
         Path('tests/assets/Presenças/Minicursos/0930/Matutino.xlsx')
-    )
-
-    names = sorted(
-        attender.name
-        for attender in attenders
-        if attender.attended
-    )
-
-    assert names == EXPECTED_NAMES
-
-
-def test_no_errors_on_conversion():
-    convert(
-        Path('tests/assets/Presenças/Minicursos/0930/Matutino.xlsx'),
-        Path('tests/generated/Presenças/Minicursos/0930/Matutino.csv'),
-    )
-
-
-def test_fetch_class():
-    attenders = attenders_from_class(
-        Path('tests/generated/Presenças/Minicursos/0930/Matutino.csv'),
-        Path(f'tests/assets/turmas/{SEMESTER}/INE5417/04208A.csv')
-    )
-
-    names = sorted(attender.name for attender in attenders)
-
-    assert names == ['Enzo Albornoz', 'Wesly Ataide']
-
-
-def test_infer_student_type_from_csv():
-    assert all(
-        isinstance(value, Student)
-        for value in data_from_csv(
-            Path('tests/generated/Presenças/Minicursos/0930/Matutino.csv')
-        )
-    )
-
-
-def test_infer_attender_type_from_csv():
-    assert all(
-        isinstance(value, Attender)
-        for value in data_from_csv(
-            Path(f'tests/assets/turmas/{SEMESTER}/INE5417/04208A.csv')
-        )
-    )
-
-
-def test_retrieve_from_csv():
-    attenders = data_from_csv(
-        Path('tests/assets/Presenças/Minicursos/0930/Matutino.csv')
-    )
+    ).attenders
 
     names = sorted(
         attender.name
