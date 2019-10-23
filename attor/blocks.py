@@ -33,6 +33,10 @@ class Schedule:
     credits: int
 
 
+def schedule_end(sched: Schedule) -> Time:
+    return advance_time(sched.time, TimeDelta(minutes=sched.credits * 50))
+
+
 @dataclass(frozen=True)
 class TimeBlock:
     '''An event time block (check module description).'''

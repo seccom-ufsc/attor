@@ -172,7 +172,8 @@ def validate(
         for sched, att in attendances.items()
     }
 
-    make_pdf(attendances, students, output_dir)  # / att_item.block.title)
+    class_name = f'{class_.subject_id}-Turma-{class_.class_id}'
+    make_pdf(attendances, students, output_dir, class_name)
 
 
 if __name__ == '__main__':
